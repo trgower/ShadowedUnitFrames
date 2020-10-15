@@ -801,8 +801,8 @@ function Units:SetHeaderAttributes(frame, type)
 	local heightMod = (config.attribPoint == "TOP" or config.attribPoint == "BOTTOM") and MEMBERS_PER_RAID_GROUP or 1
 
 	frame:SetAttribute("point", config.attribPoint)
-	frame:SetAttribute("sortMethod", config.sortMethod)
-	frame:SetAttribute("sortDir", config.sortOrder)
+	--frame:SetAttribute("sortMethod", config.sortMethod)
+	--frame:SetAttribute("sortDir", config.sortOrder)
 
 	frame:SetAttribute("xOffset", config.offset * xMod)
 	frame:SetAttribute("yOffset", config.offset * yMod)
@@ -912,6 +912,15 @@ function Units:SetHeaderAttributes(frame, type)
 		frame:SetAttribute("unitsPerColumn", config.unitsPerColumn)
 		frame:SetAttribute("columnSpacing", config.columnSpacing)
 		frame:SetAttribute("columnAnchorPoint", config.attribAnchorPoint)
+        
+        if config.sortMethod == "ROLE" then
+            frame:SetAttribute("groupBy", "ASSIGNEDROLE")
+            if config.sortOrder == "ASC" then
+                frame:SetAttribute("groupingOrder", "TANK,HEALER,DAMAGER,NONE")
+            else
+                frame:SetAttribute("groupingOrder", "DAMAGER,HEALER,TANK,NONE")
+            end
+        end
 
 		self:CheckGroupVisibility()
 		if( stateMonitor.party ) then

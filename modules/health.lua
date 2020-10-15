@@ -36,7 +36,6 @@ function Health:OnEnable(frame)
 	frame:RegisterUnitEvent("UNIT_CONNECTION", self, "Update")
 	frame:RegisterUnitEvent("UNIT_FACTION", self, "UpdateColor")
 	frame:RegisterUnitEvent("UNIT_THREAT_SITUATION_UPDATE", self, "UpdateColor")
-	frame:RegisterUnitEvent("UNIT_HEALTH_FREQUENT", self, "Update")
 	frame:RegisterUnitEvent("UNIT_TARGETABLE_CHANGED", self, "UpdateColor")
 
 	if( frame.unit == "pet" ) then
@@ -92,6 +91,8 @@ function Health:UpdateColor(frame)
 		return
 	elseif( ShadowUF.db.profile.units[frame.unitType].healthBar.colorDispel and frame.healthBar.hasDebuff ) then
 		color = DebuffTypeColor[frame.healthBar.hasDebuff]
+    elseif (frame.healthBar.lockColor) then
+        color = frame.healthBar.overrideColor;
 	elseif( ShadowUF.db.profile.units[frame.unitType].healthBar.colorAggro and UnitThreatSituation(frame.unit) == 3 ) then
 		frame:SetBarColor("healthBar", ShadowUF.db.profile.healthColors.aggro.r, ShadowUF.db.profile.healthColors.aggro.g, ShadowUF.db.profile.healthColors.aggro.b)
 		return
@@ -140,12 +141,12 @@ function Health:UpdateColor(frame)
 		color = ShadowUF.db.profile.healthColors.static
 	end
 
-	if( color ) then
-		frame:SetBarColor("healthBar", color.r, color.g, color.b)
-	else
-		frame.healthBar.hasPercent = true
-		frame:SetBarColor("healthBar", getGradientColor(unit))
-	end
+    if( color ) then
+        frame:SetBarColor("healthBar", color.r, color.g, color.b)
+    else
+        frame.healthBar.hasPercent = true
+        frame:SetBarColor("healthBar", getGradientColor(unit))
+    end
 end
 
 function Health:Update(frame)

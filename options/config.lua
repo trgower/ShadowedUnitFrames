@@ -754,14 +754,6 @@ local function loadGeneralOptions()
 								name = "",
 								width = "full",
 							},
-							auraBorder = {
-								order = 5,
-								type = "select",
-								name = L["Aura border style"],
-								desc = L["Style of borders to show for all auras."],
-								values = {["dark"] = L["Dark"], ["light"] = L["Light"], ["blizzard"] = L["Blizzard"], [""] = L["None"]},
-								arg = "auras.borderType",
-							},
 							statusbar = {
 								order = 6,
 								type = "select",
@@ -778,6 +770,27 @@ local function loadGeneralOptions()
 								min = -10, max = 10, step = 0.05, softMin = -5, softMax = 5,
 								arg = "bars.spacing",
 								hidden = hideAdvancedOption,
+							},
+                            sep3 = {
+								order = 7.5,
+								type = "description",
+								name = "",
+								width = "full",
+							},
+                            border = {
+								order = 8,
+								type = "select",
+								name = L["Aura border"],
+                                dialogControl = "LSM30_Border",
+								values = getMediaData,
+								arg = "border",
+							},
+							borderSize = {
+								order = 9,
+								type = "range",
+								name = L["Aura border size"],
+								min = 1, max = 10, step = 1, softMin = 1, softMax = 10,
+                                arg = "bordersize",
 							},
 						},
 					},
@@ -2293,10 +2306,27 @@ local function loadUnitOptions()
 						desc = L["Allows you to anchor the aura group to another, you can then choose where it will be anchored using the position.|n|nUse this if you want to duplicate the default ui style where buffs and debuffs are separate groups."],
 						set = function(info, value)
 							setVariable(info[2], "auras", info[#(info) - 2] == "buffs" and "debuffs" or "buffs", "anchorOn", false)
+                            if info[2] == "player" then
+                               setVariable("player", "auras", info[#(info) - 2], "anchorToMinimap", false)
+                            end
 							setUnit(info, value)
 						end,
-						width = "full",
 						arg = "auras.$parentparent.anchorOn",
+					},
+                    anchorToMinimap = {
+						order = 1,
+						type = "toggle",
+						name = L["Anchor to Minimap"],
+						desc = L["Anchor auras to the minimap."],
+                        set = function(info, value)
+                            --local enabled = getVariable("player", "auras", info[#(info) - 2] == "buffs" and "debuffs" or "buffs", "anchorOn")
+                            setVariable("player", "auras", info[#(info) - 2], "anchorOn", false)
+                            setUnit(info, value)
+                        end,
+                        hidden = function(info)
+                            return not (info[2] == "player")
+                        end,
+						arg = "auras.$parentparent.anchorToMinimap",
 					},
 					anchorPoint = {
 						order = 1.5,
@@ -2510,7 +2540,7 @@ local function loadUnitOptions()
 				type = "range",
 				name = L["Height"],
 				desc = L["How much of the frames total height this bar should get, this is a weighted value, the higher it is the more it gets."],
-				min = 0, max = 10, step = 0.1,
+				min = 0, max = 10, step = 0.01,
 				hidden = hideBarOption,
 				arg = "$parent.height",
 			}
@@ -3884,7 +3914,9 @@ local function loadUnitOptions()
 								order = 2,
 								type = "select",
 								name = L["Sort method"],
-								values = {["INDEX"] = L["Index"], ["NAME"] = L["Name"]},
+								values = function(info)
+                                    return info[2] == "raid" and {["INDEX"] = L["Index"], ["NAME"] = L["Name"]} or {["INDEX"] = L["Index"], ["NAME"] = L["Name"], ["ROLE"] = L["Role"]}
+                                end,
 								arg = "sortMethod",
 								hidden = false,
 							},
@@ -4139,13 +4171,29 @@ local function loadUnitOptions()
 								values = {["class"] = L["Class"], ["type"] = L["Power Type"]},
 								arg = "powerBar.colorType",
 							},
-							onlyMana = {
+                            sep = {
 								order = 6,
+								type = "description",
+								name = "",
+								width = "full",
+								hidden = false,
+							},
+							onlyMana = {
+								order = 7,
 								type = "toggle",
 								name = L["Only show when mana"],
 								desc = L["Hides the power bar unless the class has mana."],
 								hidden = function(info) return not ShadowUF.Units.headerUnits[info[2]] end,
 								arg = "powerBar.onlyMana",
+							},
+                            healerMana = {
+								order = 8,
+								type = "toggle",
+								name = L["Only show mana if healer"],
+								desc = L["Hides mana bars if they aren't healers."],
+								hidden = function(info) return not ShadowUF.Units.headerUnits[info[2]] end,
+                                disabled = function(info) return not ShadowUF.db.profile.units[info[2]].powerBar.onlyMana end,
+								arg = "powerBar.healerMana",
 							}
 						},
 					},
@@ -6553,6 +6601,16 @@ local function loadAuraIndicatorsOptions()
 				writeAuraTable(aura)
 				ShadowUF.Layout:Reload()
 				return
+            elseif( key == "healthBarColor" ) then
+				Indicators.auraConfig[aura].healthBarColor = Indicators.auraConfig[aura].healthBarColor or {}
+				Indicators.auraConfig[aura].healthBarColor.r = value
+				Indicators.auraConfig[aura].healthBarColor.g = g
+				Indicators.auraConfig[aura].healthBarColor.b = b
+				Indicators.auraConfig[aura].healthBarColor.alpha = a
+
+				writeAuraTable(aura)
+				ShadowUF.Layout:Reload()
+				return
 			end
 
 			Indicators.auraConfig[aura][key] = value
@@ -6568,6 +6626,9 @@ local function loadAuraIndicatorsOptions()
 			elseif( key == "selfColor" ) then
 				if( not config.selfColor ) then return 0, 0, 0, 1 end
 				return config.selfColor.r, config.selfColor.g, config.selfColor.b, config.selfColor.alpha
+            elseif( key == "healthBarColor" ) then
+				if( not config.healthBarColor ) then return 0, 0, 0, 1 end
+				return config.healthBarColor.r, config.healthBarColor.g, config.healthBarColor.b, config.healthBarColor.alpha
 			end
 
 			return config[key]
@@ -6596,8 +6657,23 @@ local function loadAuraIndicatorsOptions()
 				width = "full",
 				hidden = false,
 			},
-			color = {
+            toggleHealthColor = {
 				order = 4,
+				type = "toggle",
+				name = L["Health bar"],
+				desc = L["Change the color of the unit's health bar when the aura is present."],
+				hidden = false,
+			},
+            healthBarColor = {
+				order = 4.5,
+				type = "color",
+				name = L["Health color"],
+				desc = L["Color of health bar when aura is present."],
+				hidden = false,
+				hasAlpha = true,
+			},
+			color = {
+				order = 5,
 				type = "color",
 				name = L["Indicator color"],
 				desc = L["Solid color to use in the indicator, only used if you do not have use aura icon enabled."],
@@ -6606,7 +6682,7 @@ local function loadAuraIndicatorsOptions()
 				hasAlpha = true,
 			},
 			selfColor = {
-				order = 4.5,
+				order = 5.5,
 				type = "color",
 				name = L["Your aura color"],
 				desc = L["This color will be used if the indicator shown is your own, only applies if icons are not used.\nHandy if you want to know if a target has a Rejuvenation on them, but you also want to know if you were the one who casted the Rejuvenation."],
@@ -6618,42 +6694,42 @@ local function loadAuraIndicatorsOptions()
 				hasAlpha = true,
 			},
 			sep2 = {
-				order = 5,
+				order = 6,
 				type = "description",
 				name = "",
 				width = "full",
 				hidden = false,
 			},
 			icon = {
-				order = 6,
+				order = 7,
 				type = "toggle",
 				name = L["Show aura icon"],
 				desc = L["Instead of showing a solid color inside the indicator, the icon of the aura will be shown."],
 				hidden = false,
 			},
 			duration = {
-				order = 7,
+				order = 8,
 				type = "toggle",
 				name = L["Show aura duration"],
 				desc = L["Shows a cooldown wheel on the indicator with how much time is left on the aura."],
 				hidden = false,
 			},
 			player = {
-				order = 8,
+				order = 9,
 				type = "toggle",
 				name = L["Only show self cast auras"],
 				desc = L["Only auras you specifically cast will be shown."],
 				hidden = false,
 			},
 			missing = {
-				order = 9,
+				order = 10,
 				type = "toggle",
 				name = L["Only show if missing"],
 				desc = L["Only active this aura inside an indicator if the group member does not have the aura."],
 				hidden = false,
 			},
 			delete = {
-				order = 10,
+				order = 11,
 				type = "execute",
 				name = L["Delete"],
 				hidden = function(info)
@@ -6827,7 +6903,7 @@ local function loadAuraIndicatorsOptions()
 						order = 4,
 						type = "select",
 						name = L["Anchor point"],
-						values = {["BRI"] = L["Inside Bottom Right"], ["BLI"] = L["Inside Bottom Left"], ["TRI"] = L["Inside Top Right"], ["TLI"] = L["Inside Top Left"], ["CLI"] = L["Inside Center Left"], ["C"] = L["Center"], ["CRI"] = L["Inside Center Right"]},
+						values = {["BRI"] = L["Inside Bottom Right"], ["BLI"] = L["Inside Bottom Left"], ["TRI"] = L["Inside Top Right"], ["TLI"] = L["Inside Top Left"], ["CLI"] = L["Inside Center Left"], ["C"] = L["Center"], ["CRI"] = L["Inside Center Right"], ["TC"] = L["Top Center"], ["BC"] = L["Bottom Center"]},
 					},
 					size = {
 						order = 5,

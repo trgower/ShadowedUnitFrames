@@ -3,6 +3,10 @@ ShadowUF:RegisterModule(Indicators, "auraIndicators", ShadowUF.L["Aura indicator
 
 Indicators.auraFilters = {"boss", "curable"}
 
+local SharedMedia = LibStub("LibSharedMedia-3.0");
+local health = ShadowUF.modules['healthBar']
+
+
 Indicators.auraConfig = setmetatable({}, {
 	__index = function(tbl, index)
 		local aura = ShadowUF.db.profile.auraIndicators.auras[tostring(index)]
@@ -24,7 +28,6 @@ Indicators.auraConfig = setmetatable({}, {
 end})
 
 local playerUnits = {player = true, vehicle = true, pet = true}
-local backdropTbl = {bgFile = "Interface\\Addons\\ShadowedUnitFrames\\mediabackdrop", edgeFile = "Interface\\Addons\\ShadowedUnitFrames\\media\\backdrop", tile = true, tileSize = 1, edgeSize = 1}
 
 function Indicators:OnEnable(frame)
 	-- Not going to create the indicators we want here, will do that when we do the layout stuff
@@ -51,28 +54,46 @@ function Indicators:OnLayoutApplied(frame)
 		-- Create indicator as needed
 		local indicator = frame.auraIndicators["indicator-" .. id]
 		if( not indicator ) then
-			indicator = CreateFrame("Frame", nil, frame.auraIndicators, BackdropTemplateMixin and "BackdropTemplate" or nil)
+			indicator = CreateFrame("Frame", nil, frame.auraIndicators)
 			indicator:SetFrameLevel(frame.topFrameLevel + 2)
-			indicator.texture = indicator:CreateTexture(nil, "OVERLAY")
-			indicator.texture:SetPoint("CENTER", indicator)
-			indicator:SetAlpha(indicatorConfig.alpha)
-			indicator:SetBackdrop(backdropTbl)
-			indicator:SetBackdropColor(0, 0, 0, 1)
-			indicator:SetBackdropBorderColor(0, 0, 0, 0)
+            indicator:SetAlpha(indicatorConfig.alpha)
+            
+            -- Spell Icon or Flat color texture
+			indicator.texture = indicator:CreateTexture(nil, "BACKGROUND")
+            indicator.texture:SetAllPoints(indicator)
+            indicator.texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 
+            -- Cooldown frame
 			indicator.cooldown = CreateFrame("Cooldown", nil, indicator, "CooldownFrameTemplate")
 			indicator.cooldown:SetReverse(true)
+            indicator.cooldown:SetDrawEdge(false)
+            indicator.cooldown:SetDrawSwipe(true)
+            indicator.cooldown:SetSwipeColor(0, 0, 0, 0.8)
 			indicator.cooldown:SetPoint("CENTER", 0, -1)
 			indicator.cooldown:SetHideCountdownNumbers(true)
+            
+            -- Border frame
+            indicator.border = CreateFrame("Frame", nil, indicator, "BackdropTemplate")
+            indicator.border:SetBackdrop({
+                edgeFile = SharedMedia:Fetch("border", ShadowUF.db.profile.border) or "",
+                edgeSize = ShadowUF.db.profile.bordersize,
+                bgFile = nil
+            });
+            indicator.border:SetBackdropBorderColor(0, 0, 0, 1)
+            indicator.border:SetBackdropColor(0, 0, 0, 0)
+            indicator.border:SetPoint("TOPLEFT", indicator, "TOPLEFT", 0, 0)
+            indicator.border:SetFrameLevel(indicator.cooldown:GetFrameLevel() + 1)
 
-			indicator.stack = indicator:CreateFontString(nil, "OVERLAY")
-			indicator.stack:SetFont("Interface\\AddOns\\ShadowedUnitFrames\\media\\fonts\\Myriad Condensed Web.ttf", 12, "OUTLINE")
+            -- Stack text
+			indicator.stack = indicator.border:CreateFontString(nil, "OVERLAY")
+			indicator.stack:SetFont(ShadowUF.Layout.mediaPath.font, 12, "OUTLINE")
+            indicator.stack:SetTextColor(0, 1, 0, 1)
 			indicator.stack:SetShadowColor(0, 0, 0, 1.0)
 			indicator.stack:SetShadowOffset(0.8, -0.8)
-			indicator.stack:SetPoint("BOTTOMRIGHT", indicator, "BOTTOMRIGHT", 1, 0)
-			indicator.stack:SetWidth(18)
-			indicator.stack:SetHeight(10)
-			indicator.stack:SetJustifyH("RIGHT")
+			indicator.stack:SetPoint("TOPLEFT", indicator.border, "TOPLEFT", 0, 3)
+            indicator.stack:SetWidth(28)
+            indicator.stack:SetHeight(10)
+            indicator.stack:SetJustifyH("LEFT")
 
 			frame.auraIndicators["indicator-" .. id] = indicator
 		end
@@ -83,9 +104,11 @@ function Indicators:OnLayoutApplied(frame)
 
 		-- Set up the sizing options
 		indicator:SetHeight(indicatorConfig.height)
-		indicator.texture:SetWidth(indicatorConfig.width - 1)
-		indicator:SetWidth(indicatorConfig.width)
-		indicator.texture:SetHeight(indicatorConfig.height - 1)
+        indicator:SetWidth(indicatorConfig.width)
+        indicator.texture:SetHeight(indicatorConfig.height)
+		indicator.texture:SetWidth(indicatorConfig.width)
+        indicator.border:SetHeight(indicatorConfig.height)
+        indicator.border:SetWidth(indicatorConfig.width)
 
 		ShadowUF.Layout:AnchorFrame(frame, indicator, indicatorConfig)
 
@@ -119,6 +142,8 @@ local function checkFilterAura(frame, type, isFriendly, name, texture, count, au
 			indicator.showStack = config.showStack
 			indicator.priority = indicator.filters[category].priority
 			indicator.showIcon = true
+            indicator.healthBar = false
+            indicator.healthBarColor = auraConfig.healthBarColor
 			indicator.showDuration = indicator.filters[category].duration
 			indicator.spellDuration = duration
 			indicator.spellEnd = endTime
@@ -171,6 +196,8 @@ local function checkSpecificAura(frame, type, name, texture, count, auraType, du
 	indicator.showStack = ShadowUF.db.profile.auraIndicators.indicators[auraConfig.indicator].showStack
 	indicator.priority = priority
 	indicator.showIcon = auraConfig.icon
+    indicator.healthBar = auraConfig.toggleHealthColor
+    indicator.healthBarColor = auraConfig.healthBarColor
 	indicator.showDuration = auraConfig.duration
 	indicator.spellDuration = duration
 	indicator.spellEnd = endTime
@@ -217,11 +244,15 @@ function Indicators:UpdateIndicators(frame)
 			-- Show either the icon, or a solid color
 			if( indicator.showIcon and indicator.spellIcon ) then
 				indicator.texture:SetTexture(indicator.spellIcon)
-				indicator:SetBackdropColor(0, 0, 0, 0)
 			else
 				indicator.texture:SetColorTexture(indicator.colorR, indicator.colorG, indicator.colorB)
-				indicator:SetBackdropColor(0, 0, 0, 1)
 			end
+            
+            if (indicator.healthBar) then
+                frame.healthBar.lockColor = true;
+                frame.healthBar.overrideColor = indicator.healthBarColor;
+                health:UpdateColor(frame);
+            end
 
 			-- Show aura stack
 			if( indicator.showStack and indicator.spellStack > 1 ) then
@@ -234,6 +265,11 @@ function Indicators:UpdateIndicators(frame)
 			indicator:Show()
 		else
 			indicator:Hide()
+            if (indicator.healthBar) then
+                frame.healthBar.lockColor = false;
+                frame.healthBar.overrideColor = nil;
+                health:UpdateColor(frame);
+            end
 		end
 	end
 end

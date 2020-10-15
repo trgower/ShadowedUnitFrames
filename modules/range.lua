@@ -1,43 +1,34 @@
 local Range = {
 	friendly = {
-		["PRIEST"] = {
-			(GetSpellInfo(527)), -- Purify
-			(GetSpellInfo(17)), -- Power Word: Shield
-		},
-		["DRUID"] = {
-			(GetSpellInfo(774)), -- Rejuvenation
-			(GetSpellInfo(2782)), -- Remove Corruption
-		},
+		["PRIEST"] = GetSpellInfo(17), -- Power Word: Shield
+		["DRUID"] = GetSpellInfo(8936), -- Regrowth
 		["PALADIN"] = GetSpellInfo(19750), -- Flash of Light
 		["SHAMAN"] = GetSpellInfo(8004), -- Healing Surge
 		["WARLOCK"] = GetSpellInfo(5697), -- Unending Breath
-		--["DEATHKNIGHT"] = GetSpellInfo(47541), -- Death Coil
 		["MONK"] = GetSpellInfo(115450), -- Detox
+        ["MAGE"] = GetSpellInfo(475), -- Remove Curse
 	},
 	hostile = {
-		["DEATHKNIGHT"] = {
-			(GetSpellInfo(47541)), -- Death Coil
-			(GetSpellInfo(49576)), -- Death Grip
-		},
+		["DEATHKNIGHT"] = GetSpellInfo(49576), -- Death Grip
 		["DEMONHUNTER"] = GetSpellInfo(185123), -- Throw Glaive
-		["DRUID"] = GetSpellInfo(8921),  -- Moonfire
-		["HUNTER"] = {
-			(GetSpellInfo(193455)), -- Cobra Shot
-			(GetSpellInfo(19434)), -- Aimed Short
-			(GetSpellInfo(193265)), -- Hatchet Toss
-		},
-		["MAGE"] = {
-			(GetSpellInfo(116)), -- Frostbolt
-			(GetSpellInfo(30451)), -- Arcane Blast
-			(GetSpellInfo(133)), -- Fireball
-		},
+		["DRUID"] = GetSpellInfo(8921), -- Moonfire
+		["HUNTER"] = GetSpellInfo(185358), -- Remove Curse
+		["MAGE"] = GetSpellInfo(116), -- Frostbolt
 		["MONK"] = GetSpellInfo(115546), -- Provoke
 		["PALADIN"] = GetSpellInfo(62124), -- Hand of Reckoning
-		["PRIEST"] = GetSpellInfo(585), -- Smite
-		--["ROGUE"] = GetSpellInfo(1725), -- Distract
+		["PRIEST"] = GetSpellInfo(589), -- Shadow Word: Pain
 		["SHAMAN"] = GetSpellInfo(403), -- Lightning Bolt
 		["WARLOCK"] = GetSpellInfo(686), -- Shadow Bolt
 		["WARRIOR"] = GetSpellInfo(355), -- Taunt
+	},
+    resurrect = {
+		["DEATHKNIGHT"] = GetSpellInfo(61999), -- Raise Ally
+		["DRUID"] = GetSpellInfo(20484), -- Rebirth
+		["MONK"] = GetSpellInfo(115178), -- Resuscitate
+		["PALADIN"] = GetSpellInfo(7328), -- Redemption
+		["PRIEST"] = GetSpellInfo(2006), -- Resurrection
+		["SHAMAN"] = GetSpellInfo(2008), -- Ancestral Spirit
+		["WARLOCK"] = GetSpellInfo(20707), -- Soulstone
 	},
 }
 
@@ -46,6 +37,8 @@ ShadowUF:RegisterModule(Range, "range", ShadowUF.L["Range indicator"])
 local LSR = LibStub("SpellRange-1.0")
 
 local playerClass = select(2, UnitClass("player"))
+--local playerSpec = GetSpecialization()
+--local playerSpecName = playerSpec and select(2, GetSpecializationInfo(playerSpec)) or "None"
 local rangeSpells = {}
 
 local function checkRange(self)
@@ -53,23 +46,31 @@ local function checkRange(self)
 
 	-- Check which spell to use
 	local spell
+    local help = false
+    local harm = false
 	if( UnitCanAssist("player", frame.unit) ) then
-		spell = rangeSpells.friendly
+        if UnitIsDeadOrGhost(frame.unit) then
+            spell = rangeSpells.resurrect
+        else 
+            spell = rangeSpells.friendly
+        end
+        help = true
 	elseif( UnitCanAttack("player", frame.unit) ) then
 		spell = rangeSpells.hostile
+        harm = true
 	end
-
-	if( not UnitIsConnected(frame.unit) or UnitPhaseReason(frame.unit) ) then
-		frame:SetRangeAlpha(ShadowUF.db.profile.units[frame.unitType].range.oorAlpha)
-	elseif( spell ) then
-		frame:SetRangeAlpha(LSR.IsSpellInRange(spell, frame.unit) == 1 and ShadowUF.db.profile.units[frame.unitType].range.inAlpha or ShadowUF.db.profile.units[frame.unitType].range.oorAlpha)
-	-- That didn't work, but they are grouped lets try the actual API for this, it's a bit flaky though and not that useful generally
-	elseif( UnitInRaid(frame.unit) or UnitInParty(frame.unit) ) then
-		frame:SetRangeAlpha(UnitInRange(frame.unit, "player") and ShadowUF.db.profile.units[frame.unitType].range.inAlpha or ShadowUF.db.profile.units[frame.unitType].range.oorAlpha)
-	-- Nope, fall back to interaction :(
-	else
-		frame:SetRangeAlpha(CheckInteractDistance(frame.unit, 1) and ShadowUF.db.profile.units[frame.unitType].range.inAlpha or ShadowUF.db.profile.units[frame.unitType].range.oorAlpha)
-	end
+    
+    if not UnitIsConnected(frame.unit) then
+        frame:SetRangeAlpha(ShadowUF.db.profile.units[frame.unitType].range.inAlpha)
+    elseif (UnitPhaseReason(frame.unit)) then
+        frame:SetRangeAlpha(ShadowUF.db.profile.units[frame.unitType].range.oorAlpha)
+    elseif (spell) then
+        frame:SetRangeAlpha(LSR.IsSpellInRange(spell, frame.unit) == 1 and ShadowUF.db.profile.units[frame.unitType].range.inAlpha or ShadowUF.db.profile.units[frame.unitType].range.oorAlpha)
+    elseif (UnitInRaid(frame.unit) or UnitInParty(frame.unit)) then
+        frame:SetRangeAlpha(UnitInRange(frame.unit, "player") and ShadowUF.db.profile.units[frame.unitType].range.inAlpha or ShadowUF.db.profile.units[frame.unitType].range.oorAlpha)  
+    else
+        frame:SetRangeAlpha(CheckInteractDistance(frame.unit, 1) and ShadowUF.db.profile.units[frame.unitType].range.inAlpha or ShadowUF.db.profile.units[frame.unitType].range.oorAlpha)
+    end
 end
 
 local function updateSpellCache(category)
@@ -81,17 +82,11 @@ local function updateSpellCache(category)
 		rangeSpells[category] = ShadowUF.db.profile.range[category .. "Alt" .. playerClass]
 
 	elseif( Range[category][playerClass] ) then
-		if( type(Range[category][playerClass]) == "table" ) then
-			for i = 1, #Range[category][playerClass] do
-				local spell = Range[category][playerClass][i]
-				if( IsUsableSpell(spell) ) then
-					rangeSpells[category] = spell
-					break
-				end
-			end
-		elseif( IsUsableSpell(Range[category][playerClass]) ) then
+		--if( type(Range[category][playerClass]) == "table" ) then
+		--	rangeSpells[category] = Range[category][playerClass][playerSpecName]
+		--else
 			rangeSpells[category] = Range[category][playerClass]
-		end
+		--end
 	end
 end
 
@@ -145,8 +140,11 @@ end
 
 
 function Range:SpellChecks(frame)
+    --playerSpec = GetSpecialization()
+    --playerSpecName = playerSpec and select(2, GetSpecializationInfo(playerSpec)) or "None"
 	updateSpellCache("friendly")
 	updateSpellCache("hostile")
+    updateSpellCache("resurrect")
 	if( frame.range ) then
 		self:ForceUpdate(frame)
 	end

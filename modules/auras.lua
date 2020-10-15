@@ -4,6 +4,8 @@ local mainHand, offHand, tempEnchantScan = {time = 0}, {time = 0}
 local canCure = ShadowUF.Units.canCure
 ShadowUF:RegisterModule(Auras, "auras", ShadowUF.L["Auras"])
 
+local SharedMedia = LibStub("LibSharedMedia-3.0");
+
 function Auras:OnEnable(frame)
 	frame.auras = frame.auras or {}
 
@@ -50,7 +52,7 @@ local positionData = setmetatable({}, {
 			colY = 2
 			yOffset = " + offset"
 			initialYOffset = string.format(" + (%d * offset)", data.yMod)
-			auraX = 2
+			auraX = 1
 		end
 
 		data.initialAnchor = load(string.format([[return function(button, offset)
@@ -222,10 +224,17 @@ local function updateButton(id, group, config)
 		group.buttons[id] = CreateFrame("Button", nil, group)
 
 		button = group.buttons[id]
-		button:SetScript("OnEnter", showTooltip)
-		button:SetScript("OnLeave", hideTooltip)
-		button:RegisterForClicks("RightButtonUp")
-
+        
+        -- Remove tooltips on party and raid frames
+        if group.parent and group.parent.unitType and (group.parent.unitType == "party" or group.parent.unitType == "raid") then
+            button:EnableMouse(false)
+        else
+            button:SetScript("OnEnter", showTooltip)
+            button:SetScript("OnLeave", hideTooltip)
+            button:RegisterForClicks("RightButtonUp")
+        end
+        
+        -- Cooldown frame
 		button.cooldown = CreateFrame("Cooldown", group.parent:GetName() .. "Aura" .. group.type .. id .. "Cooldown", button, "CooldownFrameTemplate")
 		button.cooldown:SetAllPoints(button)
 		button.cooldown:SetReverse(true)
@@ -233,35 +242,34 @@ local function updateButton(id, group, config)
 		button.cooldown:SetDrawSwipe(true)
 		button.cooldown:SetSwipeColor(0, 0, 0, 0.8)
 		button.cooldown:Hide()
+        
+        -- Border frame
+        button.border = CreateFrame("Frame", nil, button, "BackdropTemplate")
+        button.border:SetBackdrop({
+            edgeFile = SharedMedia:Fetch("border", ShadowUF.db.profile.border) or "",
+            edgeSize = ShadowUF.db.profile.bordersize,
+            bgFile = nil
+        });
+        button.border:SetBackdropBorderColor(0, 0, 0, 1)
+        button.border:SetBackdropColor(0, 0, 0, 1)
+        button.border:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
+        button.border:SetFrameLevel(button.cooldown:GetFrameLevel() + 1)
 
-		button.stack = button:CreateFontString(nil, "OVERLAY")
-		button.stack:SetFont("Interface\\AddOns\\ShadowedUnitFrames\\media\\fonts\\Myriad Condensed Web.ttf", 10, "OUTLINE")
+        -- Stack text
+		button.stack = button.border:CreateFontString(nil, "OVERLAY")
+		button.stack:SetFont(ShadowUF.Layout.mediaPath.font, 10, "OUTLINE")
+        button.stack:SetTextColor(0, 1, 0, 1)
 		button.stack:SetShadowColor(0, 0, 0, 1.0)
 		button.stack:SetShadowOffset(0.50, -0.50)
-		button.stack:SetHeight(1)
-		button.stack:SetWidth(1)
-		button.stack:SetAllPoints(button)
-		button.stack:SetJustifyV("BOTTOM")
-		button.stack:SetJustifyH("RIGHT")
+		button.stack:SetPoint("TOPLEFT", button.border, "TOPLEFT", 0, 2)
+        button.stack:SetWidth(28)
+        button.stack:SetHeight(10)
+        button.stack:SetJustifyH("LEFT")
 
-		button.border = button:CreateTexture(nil, "OVERLAY")
-		button.border:SetPoint("CENTER", button)
-
+        -- Spell Icon
 		button.icon = button:CreateTexture(nil, "BACKGROUND")
 		button.icon:SetAllPoints(button)
-		button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-	end
-
-	if( ShadowUF.db.profile.auras.borderType == "" ) then
-		button.border:Hide()
-	elseif( ShadowUF.db.profile.auras.borderType == "blizzard" ) then
-		button.border:SetTexture("Interface\\Buttons\\UI-Debuff-Overlays")
-		button.border:SetTexCoord(0.296875, 0.5703125, 0, 0.515625)
-		button.border:Show()
-	else
-		button.border:SetTexture("Interface\\AddOns\\ShadowedUnitFrames\\media\\textures\\border-" .. ShadowUF.db.profile.auras.borderType)
-		button.border:SetTexCoord(0, 1, 0, 1)
-		button.border:Show()
+		button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- Crops blizzard default border out
 	end
 
 	-- Set the button sizing
@@ -269,9 +277,9 @@ local function updateButton(id, group, config)
 	button.cooldown:SetHideCountdownNumbers(ShadowUF.db.profile.blizzardcc)
 	button:SetHeight(config.size)
 	button:SetWidth(config.size)
-	button.border:SetHeight(config.size + 1)
-	button.border:SetWidth(config.size + 1)
-	button.stack:SetFont("Interface\\AddOns\\ShadowedUnitFrames\\media\\fonts\\Myriad Condensed Web.ttf", math.floor((config.size * 0.60) + 0.5), "OUTLINE")
+    button.border:SetHeight(config.size)
+	button.border:SetWidth(config.size)
+	button.stack:SetFont(ShadowUF.Layout.mediaPath.font, math.floor((config.size * 0.60) + 0.5), "OUTLINE")
 
 	button:SetScript("OnClick", cancelAura)
 	button.parent = group.parent
@@ -297,7 +305,11 @@ local function updateGroup(self, type, config, reverseConfig)
 	group.temporaryEnchants = 0
 	group.type = type
 	group.parent = self
-	group.anchorTo = self
+    if (self.unit == "player" and config.anchorToMinimap) then
+        group.anchorTo = MinimapCluster
+    else
+        group.anchorTo = self
+    end
 	group:SetFrameLevel(self.highFrame:GetFrameLevel() + 1)
 	group:Show()
 
@@ -402,7 +414,7 @@ local function updateTemporaryEnchant(frame, slot, tempData, hasEnchant, enchant
 	local button = frame.buttons[frame.temporaryEnchants]
 
 	-- Purple border
-	button.border:SetVertexColor(0.50, 0, 0.50)
+    button.border:SetBackdropBorderColor(0.5, 0, 0.5, 1)
 
 	-- Show the cooldown ring
 	if( not ShadowUF.db.profile.auras.disableCooldown ) then
@@ -422,8 +434,8 @@ local function updateTemporaryEnchant(frame, slot, tempData, hasEnchant, enchant
 	-- Size it
 	button:SetHeight(config.size)
 	button:SetWidth(config.size)
-	button.border:SetHeight(config.size + 1)
-	button.border:SetWidth(config.size + 1)
+	--button.border:SetHeight(config.size + 1)
+	--button.border:SetWidth(config.size + 1)
 
 	-- Stack + icon + show! Never understood why, auras sometimes return 1 for stack even if they don't stack
 	button.auraID = slot
@@ -541,12 +553,12 @@ local function renderAura(parent, frame, type, config, displayConfig, index, fil
 	-- Show debuff border, or a special colored border if it's stealable
 	local button = frame.buttons[frame.totalAuras]
 	if( isRemovable and not isFriendly and not ShadowUF.db.profile.auras.disableColor ) then
-		button.border:SetVertexColor(ShadowUF.db.profile.auraColors.removable.r, ShadowUF.db.profile.auraColors.removable.g, ShadowUF.db.profile.auraColors.removable.b)
+        button.border:SetBackdropBorderColor(ShadowUF.db.profile.auraColors.removable.r, ShadowUF.db.profile.auraColors.removable.g, ShadowUF.db.profile.auraColors.removable.b, 1)
 	elseif( ( not isFriendly or type == "debuffs" ) and not ShadowUF.db.profile.auras.disableColor ) then
 		local color = auraType and DebuffTypeColor[auraType] or DebuffTypeColor.none
-		button.border:SetVertexColor(color.r, color.g, color.b)
+         button.border:SetBackdropBorderColor(color.r, color.g, color.b, 1)
 	else
-		button.border:SetVertexColor(0.60, 0.60, 0.60)
+         button.border:SetBackdropBorderColor(0, 0, 0, 1)
 	end
 
 	-- Show the cooldown ring
@@ -569,8 +581,8 @@ local function renderAura(parent, frame, type, config, displayConfig, index, fil
 	-- Size it
 	button:SetHeight(config.size)
 	button:SetWidth(config.size)
-	button.border:SetHeight(config.size + 1)
-	button.border:SetWidth(config.size + 1)
+	--button.border:SetHeight(config.size + 1)
+	--button.border:SetWidth(config.size + 1)
 
 	-- Stack + icon + show! Never understood why, auras sometimes return 1 for stack even if they don't stack
 	button.auraID = index

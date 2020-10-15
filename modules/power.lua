@@ -20,6 +20,8 @@ function Power:OnEnable(frame)
 
 	-- UNIT_MANA fires after repopping at a spirit healer, make sure to update powers then
 	frame:RegisterUnitEvent("UNIT_MANA", self, "Update")
+    
+    frame:RegisterNormalEvent("GROUP_ROSTER_UPDATE", self, "UpdateColor")
 
 	frame:RegisterUpdateFunc(self, "UpdateClassification")
 	frame:RegisterUpdateFunc(self, "UpdateColor")
@@ -34,7 +36,6 @@ local altColor = {}
 function Power:UpdateColor(frame)
 	local powerID, currentType, altR, altG, altB = UnitPowerType(frame.unit)
 	frame.powerBar.currentType = currentType
-
 	-- Overridden power types like Warlock pets, or Ulduar vehicles use "POWER_TYPE_#####" but triggers power events with "ENERGY", so this fixes that
 	-- by using the powerID to figure out the event type
 	if( not powerMap[currentType] ) then
@@ -42,10 +43,17 @@ function Power:UpdateColor(frame)
 	end
 
 	if( ShadowUF.db.profile.units[frame.unitType].powerBar.onlyMana ) then
-		ShadowUF.Layout:SetBarVisibility(frame, "powerBar", currentType == "MANA")
-		if( currentType ~= "MANA" ) then return end
+        local role = UnitGroupRolesAssigned(frame.unit)
+        if ShadowUF.db.profile.units[frame.unitType].powerBar.healerMana then
+            ShadowUF.Layout:SetBarVisibility(frame, "powerBar", role == "HEALER")
+        else
+            ShadowUF.Layout:SetBarVisibility(frame, "powerBar", currentType == "MANA")
+        end
+        
+		--if currentType ~= "MANA" then 
+        --    return 
+        --end
 	end
-
 
 	local color
 	if( frame.powerBar.minusMob ) then
